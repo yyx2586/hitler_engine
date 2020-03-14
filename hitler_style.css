@@ -1,0 +1,23 @@
+#messages li ul {
+    display: none;/*This is the default state.*/
+    z-index: 9999;
+    position: absolute;
+	width: 400px;
+	height: 100px;
+    max-height:50px;/*The important part*/
+    overflow-y:auto;/*Also...*/
+    overflow-x:hidden;/*And the end of the important part*/
+    margin: 0px;
+    padding-left:5px;/*Removing the large whitespace to the left of list items*/
+    border: 1px solid #ddd;
+}
+
+.container {
+	background: linear-gradient(
+	  to right, 
+	  #ff9e2c 0%, 
+	  #ff9e2c 50%, 
+	  #b6701e 50%, 
+	  #b6701e 100%
+	);
+  }
