@@ -3,7 +3,7 @@ var http = require('http').createServer(app);
 var io = require('socket.io')(http);
 var welcome_message = 'Type in your name';
 
-var new_deck = Array(17).fill('F').concat(Array(6).fill('L'));
+var new_deck = Array(11).fill('F').concat(Array(6).fill('L'));
 var id_list_map = {
   5: ['h', 'f', 'l', 'l', 'l'],
   6: ['h', 'f', 'l', 'l', 'l', 'l'],
@@ -32,6 +32,8 @@ var y_count = [];
 var n_count = [];
 var deck = [];
 var president_draw = [];
+var last_president_index = -1;
+var last_chancellor_index = -1;
 
 function initiate_game() {
   Object.keys(io.sockets.sockets).forEach(function (s) {
@@ -53,6 +55,22 @@ function initiate_game() {
   deck = [];
 }
 
+function check_end_game(){
+  if (voted_lib == 5){
+    io.emit('annoucement', 'Game ended. Liberal has prepared a bright future for mankind.')
+  }
+  else if (voted_fascist == 6){
+    io.emit('annoucement', 'Game ended. The fate of mankind has fallen into the hands of HITLER.')
+  }
+  else if ((chancellor_index == hitler_index) && (n_count.length >= 3)){
+    io.emit('annoucement', 'Game ended. Heil HITLER.')
+  }
+  else{
+    return 0;
+  }
+  initiate_game();
+  return 1;
+}
 app.get('/', function (req, res) {
   res.sendFile(__dirname + '/index.html');
 });
@@ -93,6 +111,33 @@ function process_pre_assigned_socket_state(socket, action, msg) {
         socket.state = 'initial_state';
       }
       break;
+    case 'replace_after_game_starts':
+      if (msg in existing_players){
+        socket.player = msg;
+        socket.state = 'player_assigned';
+        existing_players[msg]['socket'] = socket;
+        socket.emit('feedback', 'You are now: ' + msg + ', your ID is ' + full_names(existing_players[msg]['state'] + ', current game state is ' + game_state));
+        socket.emit('feedback', 'Current players: ' + JSON.stringify(existing_players_ls));
+        if (msg == existing_players_ls[president_index] && game_state == 'nomination'){
+          socket.emit('feedback', 'Now it is your turn to select your chancellor for the people of Germany.');
+        }
+        else if (msg == existing_players_ls[president_index] && game_state == 'drop'){
+          socket.emit('feedback', 'Your policies are:' + JSON.stringify(president_draw));
+          socket.emit('feedback', 'Please type in the policy you want to drop.');
+        }
+        else if (msg == existing_players_ls[president_index] && game_state == 'kill'){
+          socket.emit('feedback', 'Please type in player you want to eliminate for the greater good.');
+        }
+        else if (msg == existing_players_ls[president_index] && game_state == 'check_id'){
+          socket.emit('feedback', 'Please type in the name you want to check party ID. Choose wisely.');
+        }
+        else if (msg == existing_players_ls[chancellor_index] && game_state == 'chancellor_select_policy'){
+          socket.emit('feedback', 'Policies received from President are:' + JSON.stringify(president_draw));
+          socket.emit('feedback', 'Please type in the policy you want to keep for the German people.');
+        }
+      }
+      
+    break;
   }
   return;
 }
@@ -154,6 +199,7 @@ function broadcast_game_progress() {
 }
 
 function next_president() {
+  last_president_index = president_index;
   if (president_index == existing_players_ls.length - 1) {
     president_index = 0;
     return;
@@ -162,8 +208,9 @@ function next_president() {
   return;
 }
 function update_next_president() {
+
   next_president();
-  while (existing_players_ls[president_index] in dead_person) {
+  while (dead_person.has(existing_players_ls[president_index])) {
     next_president();
   }
   return;
@@ -196,8 +243,12 @@ function process_post_assigned_socket_state(socket, action, msg) {
         socket.emit('feedback', 'Not your turn.');
         return;
       }
-      else if (!(msg in existing_players) || msg in dead_person) {
+      else if (!(msg in existing_players) || dead_person.has(msg)) {
         socket.emit('feedback', 'Player does not exist, check your spelling.');
+        return;
+      }
+      else if ( existing_players[president_index] == msg || last_chancellor_index == existing_players_ls.indexOf(msg) || last_president_index == existing_players_ls.indexOf(msg)) {
+        socket.emit('feedback', 'Nomination invalid.');
         return;
       }
       chancellor_index = existing_players_ls.indexOf(msg);
@@ -223,7 +274,7 @@ function process_post_assigned_socket_state(socket, action, msg) {
       }
       if (y_count.length >= existing_players_ls.length / 2) {
         game_state = 'president_drop_card';
-        io.emit('announcement', 'Election ended. Yes: ' + JSON.stringify(y_count) + ' , No: ', JSON.stringify(n_count));
+        io.emit('announcement', 'Election ended. Yes: ' + JSON.stringify(y_count) + ' , No: ' + JSON.stringify(n_count));
         io.emit('announcement', 'Congratulations Chancellor ' + existing_players_ls[chancellor_index] + '!');
         reset_vote();
         draw_3_cards();
@@ -231,7 +282,7 @@ function process_post_assigned_socket_state(socket, action, msg) {
         existing_players[existing_players_ls[president_index]]['socket'].emit('feedback', 'Please type in the policy you want to drop.');
       }
       else if (n_count.length > existing_players_ls.length / 2) {
-        io.emit('announcement', 'Election ended. Yes: ' + JSON.stringify(y_count) + ' , No: ', JSON.stringify(n_count));
+        io.emit('announcement', 'Election ended. Yes: ' + JSON.stringify(y_count) + ' , No: ' + JSON.stringify(n_count));
         io.emit('announcement', 'Nomination rejected for ' + existing_players_ls[chancellor_index] + '. Moving on.');
         reset_vote();
         update_next_president();
@@ -253,11 +304,12 @@ function process_post_assigned_socket_state(socket, action, msg) {
       }
       
       president_draw.splice(president_draw.indexOf(msg), 1);
-      io.emit('announcement', 'President dropped one. Now passed by to Chacelor.');
+      io.emit('announcement', 'President dropped one. Now passed by to Chancellor.');
       existing_players[existing_players_ls[chancellor_index]]['socket'].emit('feedback', 'President gave you: ' + JSON.stringify(president_draw) + ', select one for the people.');
       game_state = 'chancellor_select_policy';
       break;
     case 'chancellor_select':
+      last_chancellor_index = chancellor_index;
       if (!socket.player) {
         socket.emit('feedback', 'You do not belong to this game.');
         return;
@@ -271,11 +323,21 @@ function process_post_assigned_socket_state(socket, action, msg) {
         socket.emit('feedback', 'Selection does not exist, check your spelling (F/L)');
         return;
       }
+      else if (voted_fascist == 5 && veto_count == 0){
+        gate_state == 'check_veto';
+        io.emit('annoucement', 'Chancellor inact policy ' + msg + ' waiting for veto votes from president and chancellor.');
+        existing_players[existing_players_ls[president_index]]['socket'].emit('annoucement', 'Will you veto? (y/n');
+        existing_players[existing_players_ls[chancellor_index]]['socket'].emit('annoucement', 'Will you veto? (y/n');
+      }
       else if (msg == 'F') {
         voted_fascist++;
       }
       else if (msg == 'L') {
         voted_lib++;
+      }
+      veto_count == 0;
+      if (check_end_game()){
+        return;
       }
       president_draw = [];
       broadcast_game_progress();
@@ -318,7 +380,7 @@ function process_post_assigned_socket_state(socket, action, msg) {
         socket.emit('feedback', 'Not your turn.');
         return;
       }
-      else if (!(msg in existing_players) || msg in dead_person) {
+      else if (!(msg in existing_players) || dead_person.has(msg)) {
         socket.emit('feedback', 'Selection does not exist, check your spelling');
         socket.emit('feedback', 'User list: ' + JSON.stringify(existing_players_ls));
         return;
@@ -339,14 +401,14 @@ function process_post_assigned_socket_state(socket, action, msg) {
         socket.emit('feedback', 'Not your turn.');
         return;
       }
-      else if (!(msg in existing_players) || msg in dead_person) {
+      else if (!(msg in existing_players) || dead_person.has(msg)) {
         socket.emit('feedback', 'Selection does not exist, check your spelling');
         socket.emit('feedback', 'User list: ' + JSON.stringify(existing_players_ls));
         return;
       }
       else {
         io.emit('announcement', 'President has selected ' + msg + ' as new president.');
-        president_index = existing_players_ls.indexOf('msg');
+        president_index = existing_players_ls.indexOf(msg);
         switch_to_new_president();
       }
       break;
@@ -359,9 +421,9 @@ function process_post_assigned_socket_state(socket, action, msg) {
         socket.emit('feedback', 'Not your turn.');
         return;
       }
-      else if (!(msg in existing_players) || msg in dead_person) {
+      else if (!(msg in existing_players) || (dead_person.has(msg))) {
         socket.emit('feedback', 'Selection does not exist, check your spelling');
-        socket.emit('feedback', 'User list: ' + JSON.stringify(existing_players_ls));
+        socket.emit('feedback', 'User list: ' + JSON.stringify(existing_players_ls), 'Dead list: ' +);
         return;
       }
       else {
@@ -371,6 +433,40 @@ function process_post_assigned_socket_state(socket, action, msg) {
         switch_to_new_president();
       }
       break;
+    case 'check_veto':
+      if (!socket.player) {
+        socket.emit('feedback', 'You do not belong to this game.');
+        return;
+      }
+      else if (socket.player != existing_players_ls[president_index] || socket.player != existing_players_ls[chancellor_index]) {
+        socket.emit('feedback', 'Not your turn.');
+        return;
+      }
+      else if (msg != 'y' && msg != 'n') {
+        socket.emit('feedback', 'Invalid vote');
+        return;
+      }
+      else {
+        socket.emit('feedback', 'You have voted ' + msg);
+        if (msg == 'y'){
+          veto_count ++;
+        }
+        else if (msg == 'n'){
+          veto_count --;
+        }
+        if (veto_count == 2){
+          io.emit('announcement', 'Veto succeeded. R-draw.');
+          draw_3_cards();
+          game_state = 'president_drop_card';
+          existing_players[existing_players_ls[president_index]]['socket'].emit('feedback', 'Your policies are:' + JSON.stringify(president_draw));
+          existing_players[existing_players_ls[president_index]]['socket'].emit('feedback', 'Please type in the policy you want to drop.');
+        }
+        else{
+          voted_fascist ++;
+          check_end_game();
+        }
+      }
+      break;
   }
   return;
 }
@@ -378,7 +474,8 @@ function process_post_assigned_socket_state(socket, action, msg) {
 io.on('connection', function (socket) {
   console.log('a user connected');
   if (game_started) {
-    socket.emit('welcome_message', 'Game already started. You are watching.');
+    socket.emit('feedback', 'Game already started. You can continue to watch, or type in a name to replace.');
+    socket.state = 'replace_user';
   }
   else {
     socket.emit('feedback', welcome_message);
@@ -388,6 +485,9 @@ io.on('connection', function (socket) {
     console.log('user feedback: ' + msg + ' user state: ' + socket.state);
     if (socket.state) {
       switch (socket.state) {
+        case 'replace_after_game_starts':
+          process_pre_assigned_socket_state(socket, 'replace_after_game_starts', msg);
+          break;
         case 'initial_state':
           process_pre_assigned_socket_state(socket, 'name_input', msg);
           break;
@@ -438,6 +538,9 @@ io.on('connection', function (socket) {
             }
             else if (game_state == 'examine_top_three_cards') {
               process_post_assigned_socket_state(socket, 'examine_top_three_cards', msg);
+            }
+            else if (game_state == 'check_veto') {
+              process_post_assigned_socket_state(socket, 'check_veto', msg);
             }
           }
           break;
