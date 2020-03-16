@@ -201,7 +201,6 @@ function broadcast_game_progress() {
 }
 
 function next_president() {
-  last_president_index = president_index;
   if (president_index == existing_players_ls.length - 1) {
     president_index = 0;
     return;
@@ -210,7 +209,7 @@ function next_president() {
   return;
 }
 function update_next_president() {
-
+  last_president_index = president_index;
   next_president();
   while (dead_person.has(existing_players_ls[president_index])) {
     next_president();
@@ -332,8 +331,9 @@ function process_post_assigned_socket_state(socket, action, msg) {
       else if (voted_fascist == 5 && veto_count == 0){
         game_state == 'check_veto';
         io.emit('annoucement', 'Chancellor inact policy ' + msg + ' waiting for veto votes from president and chancellor.');
-        existing_players[existing_players_ls[president_index]]['socket'].emit('annoucement', 'Will you veto? (y/n');
-        existing_players[existing_players_ls[chancellor_index]]['socket'].emit('annoucement', 'Will you veto? (y/n');
+        existing_players[existing_players_ls[president_index]]['socket'].emit('feedback', 'Will you veto? (y/n');
+        existing_players[existing_players_ls[chancellor_index]]['socket'].emit('feedback', 'Will you veto? (y/n');
+        return;
       }
       else if (msg == 'F') {
         voted_fascist++;
@@ -366,7 +366,7 @@ function process_post_assigned_socket_state(socket, action, msg) {
         break;
       }
       else if ((voted_fascist == 4 && msg=='F') || (voted_fascist == 5  && msg=='F')) {
-        io.emit('announcement', 'Forth Fascist Policy: President kill one person for the greater good.');
+        io.emit('announcement', 'Forth or Fifth Fascist Policy: President kill one person for the greater good.');
         game_state = 'kill'
         break;
       }
@@ -414,6 +414,7 @@ function process_post_assigned_socket_state(socket, action, msg) {
       }
       else {
         io.emit('announcement', 'President has selected ' + msg + ' as new president.');
+        last_president_index = president_index;
         president_index = existing_players_ls.indexOf(msg);
         switch_to_new_president();
       }
@@ -444,7 +445,7 @@ function process_post_assigned_socket_state(socket, action, msg) {
         socket.emit('feedback', 'You do not belong to this game.');
         return;
       }
-      else if (socket.player != existing_players_ls[president_index] || socket.player != existing_players_ls[chancellor_index]) {
+      else if (socket.player != existing_players_ls[president_index] && socket.player != existing_players_ls[chancellor_index]) {
         socket.emit('feedback', 'Not your turn.');
         return;
       }
@@ -461,7 +462,7 @@ function process_post_assigned_socket_state(socket, action, msg) {
           veto_count --;
         }
         if (veto_count == 2){
-          io.emit('announcement', 'Veto succeeded. R-draw.');
+          io.emit('announcement', 'Veto succeeded. Re-draw.');
           draw_3_cards();
           game_state = 'president_drop_card';
           existing_players[existing_players_ls[president_index]]['socket'].emit('feedback', 'Your policies are:' + JSON.stringify(president_draw));
