@@ -57,20 +57,30 @@ function initiate_game() {
   veto_count = 0;
 }
 
-function check_end_game(){
-  if (voted_lib == 5){
-    io.emit('annoucement', 'Game ended. Liberal has prepared a bright future for mankind.')
-  }
-  else if (voted_fascist == 6){
-    io.emit('annoucement', 'Game ended. The fate of mankind has fallen into the hands of HITLER.')
-  }
-  else if ((chancellor_index == hitler_index) && (voted_fascist >= 3)){
-    io.emit('annoucement', 'Game ended. Heil HITLER.')
+function check_hitler(){
+  if ((chancellor_index == hitler_index) && (voted_fascist >= 3)){
+    io.emit('announcement', 'Adolf ' + existing_players_ls[hitler_index] + ' Hitler was appointed chancellor on 30 January 1933, an event known as the Machtergreifung.');
+    io.emit('announcement', 'On 27 February Hindenburg paved the way to dictatorship, war, and Nazi rule by issuing the Reichstag Fire Decree');
+    io.emit('announcement', 'which nullified civil liberties and gave Hitler nearly dictatorial powers.');
   }
   else{
     return 0;
   }
-  initiate_game();
+  setTimeout(initiate_game, 5000);
+  return 1;
+}
+
+function check_end_game(){
+  if (voted_lib == 5){
+    io.emit('announcement', 'Game ended. Liberal has prepared a bright future for mankind.');
+  }
+  else if (voted_fascist == 6){
+    io.emit('announcement', 'Game ended. The fate of mankind has fallen into the hands of HITLER.');
+  }
+  else{
+    return 0;
+  }
+  setTimeout(initiate_game, 5000);
   return 1;
 }
 app.get('/', function (req, res) {
@@ -156,16 +166,28 @@ function assign_party_id() {
   console.log('Assigning party ids.');
   id_list = id_list_map[existing_players_ls.length];
   shuffleArray(id_list);
-  var ct = 0;
-  Object.keys(io.sockets.sockets).forEach(function (s) {
-    if (io.sockets.sockets[s].player) {
-      io.sockets.sockets[s].emit('feedback', 'Your identity is: ' + full_names[id_list[ct]]);
-      existing_players[io.sockets.sockets[s].player]['state'] = id_list[ct];
-      if (id_list[ct] == 'h') {
-        hitler_index = ct;
-      }
-      ct++;
+
+  //construct bad people's list
+  temp_ids = {'Fascist': '', 'Hitler': ''};
+  for (var i = 0; i < existing_players_ls.length; i++) {
+    if (id_list[i] == 'f'){
+      temp_ids['Fascist'] += (' ' + existing_players_ls[i]);
     }
+    else if (id_list[i] == 'h'){
+      temp_ids['Hitler'] += existing_players_ls[i];
+    }
+  }
+  var ct = 0;
+  existing_players_ls.forEach(function (p) {
+    existing_players[p]['socket'].emit('feedback', 'Your identity is: ' + full_names[id_list[ct]]);
+    existing_players[p]['state'] = id_list[ct];
+    if (id_list[ct] == 'h') {
+      hitler_index = ct;
+    }
+    else if(id_list[ct] == 'f') {
+      existing_players[p]['socket'].emit('feedback', 'Fascist team members: ' + JSON.stringify(temp_ids));
+    }
+    ct++;
   });
 }
 
@@ -266,6 +288,9 @@ function process_post_assigned_socket_state(socket, action, msg) {
         socket.emit('feedback', 'Invalide vote. Please type in \"y\" or \"n\"');
         return;
       }
+      else if (dead_person.has(socket.player)){
+        socket.emit('Unfortunately, dead people cannot vote.');
+      }
       else if (n_count.includes(socket.player) || y_count.includes(socket.player)){
         socket.emit('You have already voted.');
       }
@@ -278,7 +303,9 @@ function process_post_assigned_socket_state(socket, action, msg) {
         socket.emit('feedback', 'You have voted Nein!');
       }
       if (y_count.length >= (existing_players_ls.length - dead_person.size) / 2) {
-        check_end_game();
+        if (check_hitler()){
+          return;
+        }
         game_state = 'president_drop_card';
         io.emit('announcement', 'Election ended. Yes: ' + JSON.stringify(y_count) + ' , No: ' + JSON.stringify(n_count));
         io.emit('announcement', 'Congratulations Chancellor ' + existing_players_ls[chancellor_index] + '!');
@@ -308,7 +335,6 @@ function process_post_assigned_socket_state(socket, action, msg) {
         socket.emit('feedback', 'Selection does not exist, check your spelling (F/L)');
         return;
       }
-      
       president_draw.splice(president_draw.indexOf(msg), 1);
       io.emit('announcement', 'President dropped one. Now passed by to Chancellor.');
       existing_players[existing_players_ls[chancellor_index]]['socket'].emit('feedback', 'President gave you: ' + JSON.stringify(president_draw) + ', select one for the people.');
@@ -330,10 +356,10 @@ function process_post_assigned_socket_state(socket, action, msg) {
         return;
       }
       else if (voted_fascist == 5 && veto_count == 0){
-        game_state == 'check_veto';
-        io.emit('annoucement', 'Chancellor inact policy ' + msg + ' waiting for veto votes from president and chancellor.');
-        existing_players[existing_players_ls[president_index]]['socket'].emit('feedback', 'Will you veto? (y/n');
-        existing_players[existing_players_ls[chancellor_index]]['socket'].emit('feedback', 'Will you veto? (y/n');
+        game_state = 'check_veto';
+        io.emit('announcement', 'Chancellor inact policy ' + msg + ' waiting for veto votes from president and chancellor.');
+        existing_players[existing_players_ls[president_index]]['socket'].emit('feedback', 'Will you veto? (y/n)');
+        existing_players[existing_players_ls[chancellor_index]]['socket'].emit('feedback', 'Will you veto? (y/n)');
         return;
       }
       else if (msg == 'F') {
