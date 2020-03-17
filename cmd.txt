@@ -1,6 +1,6 @@
-scp -i hitler.pem ubuntu@54.200.98.59:~/index.html ~/Documents/GIT/hitler_engine/
+scp -i ~/Downloads/hitler.pem ubuntu@54.200.98.59:~/index.html ~/Documents/GIT/hitler_engine/hitler_engine/
 
-scp -i ~/Downloads/hitler.pem ~/Documents/GIT/hitler_engine/* ubuntu@54.200.98.59:~/
+scp -i ~/Downloads/hitler.pem ~/Documents/GIT/hitler_engine/hitler_engine/index.js ubuntu@54.200.98.59:~/
 
 ssh -i ~/Downloads/hitler.pem ubuntu@54.200.98.59
 node index.js

@@ -16,7 +16,7 @@ var full_names = {
   'l': 'Liberty Party Member',
   'f': 'Fascist Party Member',
 }
-
+var ip_player_map = {}
 
 var existing_players = {};
 var existing_players_ls = [];
@@ -96,6 +96,7 @@ function process_pre_assigned_socket_state(socket, action, msg) {
       else {
         socket.player = msg;
         socket.state = 'player_assigned';
+        ip_player_map[socket.handshake.address] = socket.player;
         existing_players[msg] = { 'state': 'waiting_to_begin', 'socket': socket };
         existing_players_ls.push(msg);
         new_user_feedback(socket);
@@ -124,7 +125,7 @@ function process_pre_assigned_socket_state(socket, action, msg) {
           socket.emit('feedback', 'Now it is your turn to select your chancellor for the people of Germany.');
         }
         else if (msg == existing_players_ls[president_index] && game_state == 'drop'){
-          socket.emit('feedback', 'Your policies are:' + JSON.stringify(president_draw));
+          socket.emit('feedback', socke.player + ' You are the current president of Germany. Your policies are:' + JSON.stringify(president_draw));
           socket.emit('feedback', 'Please type in the policy you want to drop.');
         }
         else if (msg == existing_players_ls[president_index] && game_state == 'kill'){
@@ -480,7 +481,19 @@ function process_post_assigned_socket_state(socket, action, msg) {
 
 io.on('connection', function (socket) {
   console.log('a user connected');
-  if (game_started) {
+  if (socket.handshake.address in ip_player_map && game_started){
+    existing_players[ip_player_map[socket.handshake.address]]['socket'].disconnect(true);
+    existing_players[ip_player_map[socket.handshake.address]]['socket'] = socket;
+    // ip_player_map[socket.handshake.address]
+    process_pre_assigned_socket_state(socket, 'replace_after_game_starts', ip_player_map[socket.handshake.address]);
+  }
+  else if (socket.handshake.address in ip_player_map && (! game_started)){
+    existing_players[ip_player_map[socket.handshake.address]]['socket'].disconnect(true);
+    existing_players[ip_player_map[socket.handshake.address]]['socket'] = socket;
+    socket.temp_info = ip_player_map[socket.handshake.address];
+    process_pre_assigned_socket_state(socket, 'replace_player', 'y');
+  }
+  else if (game_started) {
     socket.emit('feedback', 'Game already started. You can continue to watch, or type in a name to replace.');
     socket.state = 'replace_after_game_starts';
   }

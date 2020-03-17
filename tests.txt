@@ -1,5 +1,0 @@
-less people
-more people
-restart
-add person before starting
-add person after starting
