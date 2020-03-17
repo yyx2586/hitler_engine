@@ -2,8 +2,8 @@
 <html>
 
 <head>
-  <title>Socket.IO chat</title>
-  <link rel="stylesheet" type="text/css" href="hitler_style.css.css">
+  <title>Secret Hitler Private Engine</title>
+  <!-- <link rel="stylesheet" type="text/css" href="hitler_style.css"> -->
   <style>
     * {
       margin: 0 auto;
@@ -43,6 +43,8 @@
       max-height: 90%;
       margin-bottom: 40px;
       bottom: 100 px;
+      display: flex;
+      flex-direction: column-reverse;
     }
 
     #messages li {
@@ -86,18 +88,6 @@
         $('#messages').append($('<li>').text(msg));
       });
     });
-    // $(function () {
-    //   var socket = io();
-    //   $('form').submit(function (e) {
-    //     e.preventDefault(); // prevents page reloading
-    //     socket.emit('chat message', $('#m').val());
-    //     $('#m').val('');
-    //     return false;
-    //   });
-    //   socket.on('chat message', function (msg) {
-    //     $('#messages').append($('<li>').text(msg));
-    //   });
-    // });
   </script>
 </body>
 
