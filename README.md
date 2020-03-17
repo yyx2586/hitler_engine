@@ -1,4 +1,5 @@
 # hitler_engine
+<pre>
 Private server, invite only.
                     ,                   
                   @@@@@                 
@@ -16,4 +17,6 @@ Private server, invite only.
                     @@@@@@@@            
                  @@@@@@@@               
                   @@@@@                 
+</pre>
 
+Play at your own risk.
