@@ -510,7 +510,7 @@ function process_post_assigned_socket_state(socket, action, msg) {
           existing_players[existing_players_ls[president_index]]['socket'].emit('feedback', 'Your policies are:' + JSON.stringify(president_draw));
           existing_players[existing_players_ls[president_index]]['socket'].emit('feedback', 'Please type in the policy you want to drop.');
         }
-        else{
+        else if (veto_count <= 0){
           voted_fascist ++;
           check_end_game();
         }
