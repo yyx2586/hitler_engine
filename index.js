@@ -1,7 +1,13 @@
+
+
 var app = require('express')();
 var http = require('http').createServer(app);
-var io = require('socket.io')(http);
+var io = require('socket.io')(http,{
+  cookie: true,
+  cookiePath: '/temp'
+});
 var welcome_message = 'Type in your name';
+var cookie = require('cookie');
 
 var new_deck = Array(11).fill('F').concat(Array(6).fill('L'));
 var id_list_map = {
@@ -47,7 +53,7 @@ function initiate_game() {
   existing_players = {};
   existing_players_ls = [];
   president_draw = [];
-  president_index = 0;
+  president_index = hitler_index;
   chancellor_index = 0;
   y_count = [];
   n_count = [];
@@ -55,6 +61,8 @@ function initiate_game() {
   dead_person = new Set();
   deck = [];
   veto_count = 0;
+  ip_player_map = {}
+  last_chancellor_index = -1;
 }
 
 function check_hitler(){
@@ -96,6 +104,7 @@ function new_user_feedback(socket) {
 
 function process_pre_assigned_socket_state(socket, action, msg) {
   console.log('user feedback: ' + msg + ' todo: ' + action);
+  var soc_cookie;
   switch (action) {
     case 'name_input':
       if (msg in existing_players) {
@@ -104,9 +113,15 @@ function process_pre_assigned_socket_state(socket, action, msg) {
         socket.temp_info = msg;
       }
       else {
+        
         socket.player = msg;
         socket.state = 'player_assigned';
-        ip_player_map[socket.handshake.address] = socket.player;
+        if (socket.handshake.headers['cookie']){
+          soc_cookie = cookie.parse(socket.handshake.headers['cookie']).io;
+          if (soc_cookie){
+            ip_player_map[soc_cookie] = socket.player;
+          }
+        }
         existing_players[msg] = { 'state': 'waiting_to_begin', 'socket': socket };
         existing_players_ls.push(msg);
         new_user_feedback(socket);
@@ -120,7 +135,7 @@ function process_pre_assigned_socket_state(socket, action, msg) {
         new_user_feedback(socket);
       }
       else {
-        socket.emit('welcome_message', welcome_message);
+        socket.emit('feedback', welcome_message);
         socket.state = 'initial_state';
       }
       break;
@@ -506,17 +521,22 @@ function process_post_assigned_socket_state(socket, action, msg) {
 }
 
 io.on('connection', function (socket) {
-  console.log('a user connected');
-  if (socket.handshake.address in ip_player_map && game_started){
-    existing_players[ip_player_map[socket.handshake.address]]['socket'].disconnect(true);
-    existing_players[ip_player_map[socket.handshake.address]]['socket'] = socket;
-    // ip_player_map[socket.handshake.address]
-    process_pre_assigned_socket_state(socket, 'replace_after_game_starts', ip_player_map[socket.handshake.address]);
+  var soc_cookie = '';
+  if (socket.handshake.headers['cookie']){
+    var soc_cookie = cookie.parse(socket.handshake.headers['cookie']).io;
   }
-  else if (socket.handshake.address in ip_player_map && (! game_started)){
-    existing_players[ip_player_map[socket.handshake.address]]['socket'].disconnect(true);
-    existing_players[ip_player_map[socket.handshake.address]]['socket'] = socket;
-    socket.temp_info = ip_player_map[socket.handshake.address];
+  console.log('a user connected ' + JSON.stringify(socket.handshake.headers));
+  console.log('a user connected ' + JSON.stringify(soc_cookie));
+  if (soc_cookie in ip_player_map && game_started){
+    existing_players[ip_player_map[soc_cookie]]['socket'].disconnect(true);
+    existing_players[ip_player_map[soc_cookie]]['socket'] = socket;
+    // ip_player_map[socket.handshake.address]
+    process_pre_assigned_socket_state(socket, 'replace_after_game_starts', ip_player_map[soc_cookie]);
+  }
+  else if (soc_cookie in ip_player_map && (! game_started)){
+    existing_players[ip_player_map[soc_cookie]]['socket'].disconnect(true);
+    existing_players[ip_player_map[soc_cookie]]['socket'] = socket;
+    socket.temp_info = ip_player_map[soc_cookie];
     process_pre_assigned_socket_state(socket, 'replace_player', 'y');
   }
   else if (game_started) {
@@ -524,7 +544,7 @@ io.on('connection', function (socket) {
     socket.state = 'replace_after_game_starts';
   }
   else {
-    socket.emit('feedback', welcome_message);
+    // socket.emit('feedback', welcome_message);
     socket.state = 'initial_state';
   }
   socket.on('user_input', function (msg) {
@@ -556,10 +576,10 @@ io.on('connection', function (socket) {
             io.emit('announcement', 'Restarting game engine, please refresh.');
             initiate_game();
           }
-          else if (msg == 'cheat') {
-            console.log(JSON.stringify(existing_players));
-            socket.emit('feedback', JSON.stringify(existing_players));
-          }
+          // else if (msg == 'cheat') {
+          //   console.log(JSON.stringify(existing_players));
+          //   socket.emit('feedback', JSON.stringify(existing_players));
+          // }
           else {
             if (game_state == 'nomination') {
               process_post_assigned_socket_state(socket, 'nomination', msg);
